@@ -40,8 +40,8 @@ jobs:
 
       - name: Enable USB CDC on boot for ESP32-C3
         run: |
-          sed -i '/^\[env:esp32-c3\]/,/^\[env:/ s/^\(\s*\)\${env\.build_flags}$/&\n\1-DARDUINO_USB_CDC_ON_BOOT=1/' platformio.ini
-          sed -i '/^\[env:updater_esp32-c3\]/,/^\[env:/ s/^\(\s*\)\${env\.build_flags}$/&\n\1-DARDUINO_USB_CDC_ON_BOOT=1/' updater/platformio.ini
+          sed -i '/^\[env:esp32-c3\]/,/^\[env:/ s/^\(\s*\)\${env\.build_flags}$/&\n\1-DARDUINO_USB_CDC_ON_BOOT=1\n\1-DARDUINO_USB_MODE=1/' platformio.ini
+          sed -i '/^\[env:updater_esp32-c3\]/,/^\[env:/ s/^\(\s*\)\${env\.build_flags}$/&\n\1-DARDUINO_USB_CDC_ON_BOOT=1\n\1-DARDUINO_USB_MODE=1/' updater/platformio.ini
           grep -q 'ARDUINO_USB_CDC_ON_BOOT=1' platformio.ini
           grep -q 'ARDUINO_USB_CDC_ON_BOOT=1' updater/platformio.ini
           git diff
