@@ -1,4 +1,4 @@
-name: ESP32-C3 USB-CDC web installer
+name: ESP32-C3/S3 USB-CDC web installer
 on:
   workflow_dispatch:
   push:
@@ -16,6 +16,14 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [esp32-s3, esp32-s3-nopsram, esp32-s3-oct, esp32-c3]
+    env:
+      BOARD: ${{ matrix.board }}
+      # Route Serial (the Nuki Hub log) to the native USB port (HW CDC/JTAG)
+      PLATFORMIO_BUILD_FLAGS: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
     steps:
       - uses: actions/checkout@v6
         with:
@@ -38,14 +46,6 @@ jobs:
             "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
             "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
 
-      - name: Enable USB CDC on boot for ESP32-C3
-        run: |
-          sed -i '/^\[env:esp32-c3\]/,/^\[env:/ s/^\(\s*\)\${env\.build_flags}$/&\n\1-DARDUINO_USB_CDC_ON_BOOT=1\n\1-DARDUINO_USB_MODE=1/' platformio.ini
-          sed -i '/^\[env:updater_esp32-c3\]/,/^\[env:/ s/^\(\s*\)\${env\.build_flags}$/&\n\1-DARDUINO_USB_CDC_ON_BOOT=1\n\1-DARDUINO_USB_MODE=1/' updater/platformio.ini
-          grep -q 'ARDUINO_USB_CDC_ON_BOOT=1' platformio.ini
-          grep -q 'ARDUINO_USB_CDC_ON_BOOT=1' updater/platformio.ini
-          git diff
-
       - name: Add version info
         env:
           Version: usbcdc-${{ github.run_number }}
@@ -53,67 +53,98 @@ jobs:
 
       - name: Build
         run: |
-          make updater_esp32-c3
-          make esp32-c3
+          make updater_${BOARD}
+          make ${BOARD}
+
+      - name: Collect binaries
+        run: |
+          V=${BOARD//-/}
+          mkdir -p out/$V
+          cp release/$V/nuki_hub_bootloader_$V.bin release/$V/nuki_hub_partitions_$V.bin \
+             release/$V/boot_app0.bin release/$V/nuki_hub_$V.bin release/$V/nuki_hub_updater_$V.bin out/$V/
+          ls -la out/$V
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.board }}
+          path: out
+
+  pages:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: site
 
       - name: Create web installer
         run: |
-          mkdir -p site
-          cp release/esp32c3/nuki_hub_bootloader_esp32c3.bin \
-             release/esp32c3/nuki_hub_partitions_esp32c3.bin \
-             release/esp32c3/boot_app0.bin \
-             release/esp32c3/nuki_hub_esp32c3.bin \
-             release/esp32c3/nuki_hub_updater_esp32c3.bin site/
-          cat > site/manifest.json <<EOF
+          cd site
+          options=""
+          for V in esp32s3 esp32s3oct esp32s3nopsram esp32c3; do
+            [ -d "$V" ] || continue
+            case $V in
+              esp32c3) chip="ESP32-C3"; label="ESP32-C3" ;;
+              esp32s3) chip="ESP32-S3"; label="ESP32-S3 quad PSRAM (bv. N8R2, N16R2) of geen PSRAM" ;;
+              esp32s3nopsram) chip="ESP32-S3"; label="ESP32-S3 zonder PSRAM (als de vorige niet werkt)" ;;
+              esp32s3oct) chip="ESP32-S3"; label="ESP32-S3 octal PSRAM (bv. N8R8, N16R8)" ;;
+            esac
+            cat > manifest_$V.json <<EOF
           {
-            "name": "Nuki Hub ESP32-C3 (USB CDC logging)",
+            "name": "Nuki Hub $label (USB-CDC logging)",
             "version": "usbcdc-${{ github.run_number }}",
             "new_install_prompt_erase": true,
             "builds": [
               {
-                "chipFamily": "ESP32-C3",
+                "chipFamily": "$chip",
                 "parts": [
-                  { "path": "nuki_hub_bootloader_esp32c3.bin", "offset": 0 },
-                  { "path": "nuki_hub_partitions_esp32c3.bin", "offset": 32768 },
-                  { "path": "boot_app0.bin", "offset": 57344 },
-                  { "path": "nuki_hub_esp32c3.bin", "offset": 65536 },
-                  { "path": "nuki_hub_updater_esp32c3.bin", "offset": 2555904 }
+                  { "path": "$V/nuki_hub_bootloader_$V.bin", "offset": 0 },
+                  { "path": "$V/nuki_hub_partitions_$V.bin", "offset": 32768 },
+                  { "path": "$V/boot_app0.bin", "offset": 57344 },
+                  { "path": "$V/nuki_hub_$V.bin", "offset": 65536 },
+                  { "path": "$V/nuki_hub_updater_$V.bin", "offset": 2555904 }
                 ]
               }
             ]
           }
           EOF
-          cat > site/index.html <<'EOF'
+            options="$options<option value=\"manifest_$V.json\">$label</option>"
+          done
+          cat > index.html <<EOF
           <!doctype html>
           <html lang="nl">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Nuki Hub ESP32-C3 USB-CDC</title>
+            <title>Nuki Hub USB-CDC installer</title>
             <script type="module" src="https://unpkg.com/esp-web-tools@10.1.1/dist/web/install-button.js?module"></script>
-            <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;line-height:1.5}</style>
+            <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;line-height:1.5} select{font-size:1rem;padding:6px;margin:8px 0 16px;max-width:100%}</style>
           </head>
           <body>
-            <h1>Nuki Hub ESP32-C3 (USB-CDC logging)</h1>
-            <p>Nuki Hub firmware voor de ESP32-C3, met <code>ARDUINO_USB_CDC_ON_BOOT=1</code>, zodat de seri&euml;le log (115200 baud) over de native USB-poort komt.</p>
-            <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
-            <p>Werkt in Chrome of Edge. Na het flashen kies je in het installer-venster "Logs &amp; Console" om de log te zien, met de regel <code>Obtained IP address</code>.</p>
+            <h1>Nuki Hub met USB-CDC logging</h1>
+            <p>Nuki Hub firmware gebouwd met <code>ARDUINO_USB_CDC_ON_BOOT=1</code>: de seri&euml;le log (115200 baud) komt over de native USB-poort.</p>
+            <label for="board">Kies je bord:</label><br>
+            <select id="board">$options</select><br>
+            <esp-web-install-button id="btn"></esp-web-install-button>
+            <p>Werkt in Chrome of Edge. Na het flashen kies je "Logs &amp; Console" om de log te zien, met de regel <code>Obtained IP address</code>.</p>
+            <script>
+              const s = document.getElementById('board'), b = document.getElementById('btn');
+              b.manifest = s.value; s.onchange = () => b.manifest = s.value;
+            </script>
           </body>
           </html>
           EOF
-          ls -la site
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: nukihub-esp32c3-usbcdc
-          path: release/esp32c3
+          ls -la
 
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
   deploy:
-    needs: build
+    needs: pages
     runs-on: ubuntu-latest
     environment:
       name: github-pages
