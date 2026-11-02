@@ -1,4 +1,4 @@
-name: ESP32-C3/S3 USB-CDC web installer
+name: Nuki Hub USB-logging web installer
 on:
   workflow_dispatch:
   push:
@@ -19,11 +19,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [esp32-s3, esp32-s3-nopsram, esp32-s3-oct, esp32-c3]
+        include:
+          # S3/C3: route Serial (the Nuki Hub log) to the native USB port (HW CDC/JTAG)
+          - board: esp32-s3
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          - board: esp32-s3-nopsram
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          - board: esp32-s3-oct
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          - board: esp32-c3
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          # Classic ESP32 (e.g. ESP32-PICO): no native USB, logs already go via the USB-UART chip
+          - board: esp32-nopsram
+            flags: ""
+          - board: esp32
+            flags: ""
     env:
       BOARD: ${{ matrix.board }}
-      # Route Serial (the Nuki Hub log) to the native USB port (HW CDC/JTAG)
-      PLATFORMIO_BUILD_FLAGS: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+      PLATFORMIO_BUILD_FLAGS: ${{ matrix.flags }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -84,9 +97,12 @@ jobs:
         run: |
           cd site
           options=""
-          for V in esp32s3 esp32s3oct esp32s3nopsram esp32c3; do
+          for V in esp32s3 esp32s3oct esp32s3nopsram esp32c3 esp32nopsram esp32; do
             [ -d "$V" ] || continue
+            boot=0
             case $V in
+              esp32nopsram) chip="ESP32"; boot=4096; label="ESP32 / ESP32-PICO zonder PSRAM (bv. PICO-D4)" ;;
+              esp32) chip="ESP32"; boot=4096; label="ESP32 / ESP32-PICO met PSRAM (bv. PICO-V3-02)" ;;
               esp32c3) chip="ESP32-C3"; label="ESP32-C3" ;;
               esp32s3) chip="ESP32-S3"; label="ESP32-S3 quad PSRAM (bv. N8R2, N16R2) of geen PSRAM" ;;
               esp32s3nopsram) chip="ESP32-S3"; label="ESP32-S3 zonder PSRAM (als de vorige niet werkt)" ;;
@@ -101,7 +117,7 @@ jobs:
               {
                 "chipFamily": "$chip",
                 "parts": [
-                  { "path": "$V/nuki_hub_bootloader_$V.bin", "offset": 0 },
+                  { "path": "$V/nuki_hub_bootloader_$V.bin", "offset": $boot },
                   { "path": "$V/nuki_hub_partitions_$V.bin", "offset": 32768 },
                   { "path": "$V/boot_app0.bin", "offset": 57344 },
                   { "path": "$V/nuki_hub_$V.bin", "offset": 65536 },
@@ -124,8 +140,8 @@ jobs:
             <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;line-height:1.5} select{font-size:1rem;padding:6px;margin:8px 0 16px;max-width:100%}</style>
           </head>
           <body>
-            <h1>Nuki Hub met USB-CDC logging</h1>
-            <p>Nuki Hub firmware gebouwd met <code>ARDUINO_USB_CDC_ON_BOOT=1</code>: de seri&euml;le log (115200 baud) komt over de native USB-poort.</p>
+            <h1>Nuki Hub met USB-logging</h1>
+            <p>Nuki Hub firmware; bij de S3 en C3 gebouwd met <code>ARDUINO_USB_CDC_ON_BOOT=1</code>, zodat de seri&euml;le log (115200 baud) over de native USB-poort komt. Bij de klassieke ESP32 / PICO gaat de log via de USB-seri&euml;le chip.</p>
             <label for="board">Kies je bord:</label><br>
             <select id="board">$options</select><br>
             <esp-web-install-button id="btn"></esp-web-install-button>
