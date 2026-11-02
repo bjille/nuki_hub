@@ -1,5 +1,6 @@
 #include "NukiRetryHandler.h"
 #include "Logger.h"
+#include "../StatusLed.h"
 
 NukiRetryHandler::NukiRetryHandler(std::string reference, Gpio* gpio, std::vector<uint8_t> pinsComm, std::vector<uint8_t> pinsCommError, int nrOfRetries, int retryDelay)
 : _reference(reference),
@@ -49,12 +50,18 @@ const Nuki::CmdResult NukiRetryHandler::retryComm(std::function<Nuki::CmdResult(
     setCommPins(LOW);
     setCommErrorPins(LOW);
 
+    if(cmdResult != Nuki::CmdResult::Success)
+    {
+        StatusLed::notifyBleError();
+    }
+
     return cmdResult;
 }
 
 void NukiRetryHandler::setCommPins(const uint8_t& value)
 {
     _gpio->setPinOutput(_pinsComm, value);
+    StatusLed::setBleActive(value == HIGH);
 }
 
 void NukiRetryHandler::setCommErrorPins(const uint8_t& value)
