@@ -110,6 +110,8 @@
 #define mqtt_topic_wifi_rssi (char*)"/maintenance/wifiRssi"
 #define mqtt_topic_log (char*)"/maintenance/log"
 #define mqtt_topic_freeheap (char*)"/maintenance/freeHeap"
+#define mqtt_topic_status_led_action (char*)"/maintenance/statusLed/action"
+#define mqtt_topic_status_led_state (char*)"/maintenance/statusLed/state"
 #define mqtt_topic_restart_reason_fw (char*)"/maintenance/restartReasonNukiHub"
 #define mqtt_topic_restart_reason_esp (char*)"/maintenance/restartReasonNukiEsp"
 #define mqtt_topic_mqtt_connection_state (char*)"/maintenance/mqttConnectionState"
@@ -147,7 +149,8 @@ private:
         mqtt_topic_auth_json, mqtt_topic_auth_action, mqtt_topic_auth_command_result, mqtt_topic_info_hardware_version, mqtt_topic_info_firmware_version,
         mqtt_topic_info_nuki_hub_version, mqtt_topic_info_nuki_hub_build, mqtt_topic_info_nuki_hub_latest, mqtt_topic_info_nuki_hub_ip, mqtt_topic_reset,
         mqtt_topic_update, mqtt_topic_webserver_state, mqtt_topic_webserver_action, mqtt_topic_uptime, mqtt_topic_wifi_rssi, mqtt_topic_log, mqtt_topic_freeheap,
-        mqtt_topic_restart_reason_fw, mqtt_topic_restart_reason_esp, mqtt_topic_mqtt_connection_state, mqtt_topic_network_device, mqtt_topic_hybrid_state
+        mqtt_topic_restart_reason_fw, mqtt_topic_restart_reason_esp, mqtt_topic_mqtt_connection_state, mqtt_topic_network_device, mqtt_topic_hybrid_state,
+        mqtt_topic_status_led_action, mqtt_topic_status_led_state
     };
 public:
     const std::vector<char*> getMqttTopics()
