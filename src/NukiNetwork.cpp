@@ -13,6 +13,9 @@
 #include "hal/wdt_hal.h"
 #include "esp_mac.h"
 #include <ESP32Ping.h>
+#ifndef NUKI_HUB_UPDATER
+#include "StatusLed.h"
+#endif
 
 NukiNetwork* NukiNetwork::_inst = nullptr;
 
@@ -667,6 +670,18 @@ void NukiNetwork::updateNetworkStatusLeds()
 
     _gpio->setPinOutput(_pinsMqttConnected, mqttConnected ? HIGH : LOW);
     _gpio->setPinOutput(_pinsNetworkConnected, networkConnected ? HIGH : LOW);
+
+    if(StatusLed::enabled())
+    {
+        StatusLed::setNetworkState(networkConnected, !_mqttEnabled || mqttConnected, _device->isApOpen());
+
+        if(mqttConnected && _mqttConnectionState == 2 && StatusLed::instance()->consumeStateChanged())
+        {
+            char ledState[200];
+            StatusLed::instance()->stateJson(ledState, sizeof(ledState));
+            publishString(_maintenancePathPrefix, mqtt_topic_status_led_state, ledState, true);
+        }
+    }
 }
 
 void NukiNetwork::checkInternetConnectivity()
@@ -879,6 +894,14 @@ bool NukiNetwork::reconnect(bool force)
 
                 initTopic(_maintenancePathPrefix, mqtt_topic_webserver_action, "--");
                 subscribe(_maintenancePathPrefix, mqtt_topic_webserver_action);
+
+                if(StatusLed::enabled())
+                {
+                    char ledState[200];
+                    StatusLed::instance()->stateJson(ledState, sizeof(ledState));
+                    initTopic(_maintenancePathPrefix, mqtt_topic_status_led_state, ledState);
+                    subscribe(_maintenancePathPrefix, mqtt_topic_status_led_action);
+                }
                 initTopic(_maintenancePathPrefix, mqtt_topic_webserver_state, (_preferences->getBool(preference_webserver_enabled, true) || forceEnableWebServer ? "1" : "0"));
 
                 for(const auto& it : _initTopics)
@@ -1029,6 +1052,12 @@ void NukiNetwork::onMqttDataReceived(const espMqttClientTypes::MessageProperties
 void NukiNetwork::onMqttDataReceived(const char* topic, byte* payload, const unsigned int length)
 {
     char* data = (char*)payload;
+
+    if(StatusLed::enabled() && comparePrefixedPath(topic, mqtt_topic_status_led_action))
+    {
+        StatusLed::instance()->applyCommand(data, strlen(data));
+        return;
+    }
 
     if(comparePrefixedPath(topic, mqtt_topic_reset) && strcmp(data, "1") == 0 && !mqttRecentlyConnected())
     {
