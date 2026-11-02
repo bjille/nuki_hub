@@ -51,6 +51,7 @@ bool nuki_hub_https_server_enabled = false;
 #include "EspMillis.h"
 #include "NimBLEDevice.h"
 #include "ImportExport.h"
+#include "StatusLed.h"
 
 NukiNetworkLock* networkLock = nullptr;
 NukiNetworkOpener* networkOpener = nullptr;
@@ -1716,6 +1717,7 @@ void setup()
     CharBuffer::initialize(buffer_size);
 
     gpio = new Gpio(preferences);
+    StatusLed::initialize(preferences);
     String gpioDesc;
     gpio->getConfigurationText(gpioDesc, gpio->pinConfiguration(), "\n\r");
     Log->print(gpioDesc.c_str());
