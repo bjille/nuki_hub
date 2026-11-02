@@ -3,6 +3,9 @@
 #include "PreferencesKeys.h"
 #include "Logger.h"
 #include "RestartReason.h"
+#ifndef NUKI_HUB_UPDATER
+#include "StatusLed.h"
+#endif
 #include "util/CertUtil.h"
 #include <esp_task_wdt.h>
 #include "FS.h"
@@ -3470,6 +3473,49 @@ bool WebCfgServer::processArgs(PsychicRequest *request, PsychicResponse* resp, S
         bool v = isParameterTrue(request, "RSTDISC");
         _preferences->putBool(preference_restart_on_disconnect, v);
     }
+    if(request->hasParam("STLEDPIN"))
+    {
+        int ledPin = request->getParam("STLEDPIN")->value().toInt();
+        if(ledPin < -1 || ledPin > 255)
+        {
+            ledPin = -1;
+        }
+        if(_preferences->getInt(preference_status_led_pin, -1) != ledPin)
+        {
+            _preferences->putInt(preference_status_led_pin, ledPin);
+            configChanged = true;
+        }
+
+        int ledType = request->hasParam("STLEDTYPE") ? request->getParam("STLEDTYPE")->value().toInt() : 2;
+        if(_preferences->getInt(preference_status_led_type, 2) != ledType)
+        {
+            _preferences->putInt(preference_status_led_type, ledType);
+            configChanged = true;
+        }
+
+        if(request->hasParam("STLEDBRIGHT"))
+        {
+            int ledBright = constrain(request->getParam("STLEDBRIGHT")->value().toInt(), 1, 255);
+            if(_preferences->getInt(preference_status_led_brightness, 40) != ledBright)
+            {
+                _preferences->putInt(preference_status_led_brightness, ledBright);
+                configChanged = true;
+            }
+        }
+
+        int ledFlags = 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLNET") ? STATUS_LED_BLINK_NO_NETWORK : 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLMQTT") ? STATUS_LED_BLINK_NO_MQTT : 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLOK") ? STATUS_LED_BLINK_OK : 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLBLE") ? STATUS_LED_BLINK_BLE : 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLERR") ? STATUS_LED_BLINK_BLE_ERROR : 0;
+        ledFlags |= isParameterTrue(request, "STLEDOFFOK") ? STATUS_LED_OFF_WHEN_OK : 0;
+        if(_preferences->getInt(preference_status_led_flags, STATUS_LED_DEFAULT_FLAGS) != ledFlags)
+        {
+            _preferences->putInt(preference_status_led_flags, ledFlags);
+            configChanged = true;
+        }
+    }
     if(request->hasParam("MQTTLOG"))
     {
         bool v = isParameterTrue(request, "MQTTLOG");
@@ -5380,6 +5426,24 @@ esp_err_t WebCfgServer::buildNetworkConfigHtml(PsychicRequest *request, PsychicR
         response.print("<tr><td>Generate self-signed HTTP SSL Certificate and key</td><td><button title=\"Generate HTTP SSL Certificate and key\" onclick=\" window.open('/get?page=selfsignhttps', '_self'); return false;\">Generate</button></td></tr>");
         printInputField(&response, "HTTPSFQDN", "Nuki Hub FQDN for HTTP redirect", _preferences->getString(preference_https_fqdn, "").c_str(), 255, "");
     }
+    response.print("</table>");
+    response.print("<h3>Status LED</h3>");
+    response.print("<table>");
+    printInputField(&response, "STLEDPIN", "Status LED GPIO (-1 to disable, 35 for M5Stack AtomS3 Lite)", _preferences->getInt(preference_status_led_pin, -1), 3, "");
+    std::vector<std::pair<String, String>> ledTypes;
+    ledTypes.push_back(std::make_pair("2", "RGB LED (WS2812 / NeoPixel)"));
+    ledTypes.push_back(std::make_pair("0", "Plain LED (on = HIGH)"));
+    ledTypes.push_back(std::make_pair("1", "Plain LED (on = LOW)"));
+    printDropDown(&response, "STLEDTYPE", "Status LED type", String(_preferences->getInt(preference_status_led_type, 2)), ledTypes, "");
+    printInputField(&response, "STLEDBRIGHT", "Status LED brightness (1-255, RGB only)", _preferences->getInt(preference_status_led_brightness, 40), 3, "");
+    int ledFlags = _preferences->getInt(preference_status_led_flags, STATUS_LED_DEFAULT_FLAGS);
+    printCheckBox(&response, "STLEDBLNET", "Blink when network is disconnected (red)", ledFlags & STATUS_LED_BLINK_NO_NETWORK, "");
+    printCheckBox(&response, "STLEDBLMQTT", "Blink when MQTT is disconnected (orange)", ledFlags & STATUS_LED_BLINK_NO_MQTT, "");
+    printCheckBox(&response, "STLEDBLOK", "Blink when everything is OK (green)", ledFlags & STATUS_LED_BLINK_OK, "");
+    printCheckBox(&response, "STLEDOFFOK", "Turn LED off when everything is OK", ledFlags & STATUS_LED_OFF_WHEN_OK, "");
+    printCheckBox(&response, "STLEDBLBLE", "Blink during Bluetooth communication (blue)", ledFlags & STATUS_LED_BLINK_BLE, "");
+    printCheckBox(&response, "STLEDBLERR", "Blink after a failed Bluetooth command (magenta, 10 s)", ledFlags & STATUS_LED_BLINK_BLE_ERROR, "");
+    response.print("<tr><td colspan=\"2\">Access point (setup) mode is always shown as blinking cyan. Override the LED via MQTT topic maintenance/statusLed/action or the Home Assistant light. Changes require a restart.</td></tr>");
     response.print("</table>");
     response.print("<h3>IP Address assignment</h3>");
     response.print("<table>");
