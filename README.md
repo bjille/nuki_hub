@@ -257,7 +257,6 @@ See the "[Status LED](#status-led-optional)" section of this README for the mean
 - Status LED type: "RGB LED (WS2812 / NeoPixel)" (default), "Plain LED (on = HIGH)" or "Plain LED (on = LOW)".
 - Status LED brightness: Brightness of an RGB LED, 1-255, default 40.
 - Blink when network is disconnected (red): Blink instead of solid when there is no network connection. Enabled by default.
-- Blink when MQTT is disconnected (orange): Blink instead of solid when there is no connection to the MQTT broker. Enabled by default.
 - Blink when everything is OK (green): Blink instead of solid when everything is connected. Disabled by default.
 - Turn LED off when everything is OK: Turn the LED off instead of showing green when everything is connected. Disabled by default.
 - Blink during Bluetooth communication (blue): Blink instead of solid while a command is sent to the Nuki device. Disabled by default.
@@ -975,7 +974,6 @@ When multiple states apply, the state highest in the table is shown. For every s
 | Bluetooth communication with the Nuki device in progress | Blue | Solid |
 | Access point (setup) mode active | Cyan | Always blinking |
 | No network connection | Red | Blinking |
-| No connection to the MQTT broker (only when MQTT is configured) | Orange | Blinking |
 | Everything connected | Green | Solid (or off, when "Turn LED off when everything is OK" is enabled) |
 
 A plain LED doesn't show colors: it is on for every state above (blinking or solid as configured) and off when "Turn LED off when everything is OK" is enabled and everything is connected.
