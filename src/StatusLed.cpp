@@ -129,11 +129,6 @@ void StatusLed::currentStatusColor(uint8_t& r, uint8_t& g, uint8_t& b, bool& bli
         r = 255; g = 0; b = 0;
         blink = _flags & STATUS_LED_BLINK_NO_NETWORK;
     }
-    else if(!_mqttConnected)
-    {
-        r = 255; g = 100; b = 0;
-        blink = _flags & STATUS_LED_BLINK_NO_MQTT;
-    }
     else if(_flags & STATUS_LED_OFF_WHEN_OK)
     {
         r = 0; g = 0; b = 0;
