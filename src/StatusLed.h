@@ -10,7 +10,6 @@
 //   BLE communication active   -> blue
 //   Wi-Fi access point open    -> cyan (always blinking)
 //   No network                 -> red
-//   No MQTT connection         -> orange
 //   Everything OK              -> green (or off, configurable)
 // For every state you can choose blinking or solid in the web interface.
 //
@@ -25,14 +24,13 @@ enum class StatusLedType
     RgbWs2812 = 2
 };
 
-// Bits for preference_status_led_blink
+// Bits for preference_status_led_flags (0x02 was "blink when MQTT disconnected", no longer used)
 #define STATUS_LED_BLINK_NO_NETWORK 0x01
-#define STATUS_LED_BLINK_NO_MQTT    0x02
 #define STATUS_LED_BLINK_OK         0x04
 #define STATUS_LED_BLINK_BLE        0x08
 #define STATUS_LED_BLINK_BLE_ERROR  0x10
 #define STATUS_LED_OFF_WHEN_OK      0x20
-#define STATUS_LED_DEFAULT_FLAGS    (STATUS_LED_BLINK_NO_NETWORK | STATUS_LED_BLINK_NO_MQTT | STATUS_LED_BLINK_BLE_ERROR)
+#define STATUS_LED_DEFAULT_FLAGS    (STATUS_LED_BLINK_NO_NETWORK | STATUS_LED_BLINK_BLE_ERROR)
 
 class StatusLed
 {
