@@ -249,6 +249,20 @@ In a browser navigate to the IP address assigned to the ESP32.
 - Generate self-signed HTTP SSL Certificate and key: Optionally generate a self-signed SSL certificate and key for the HTTPS server, see the "[HTTPS Server](#https-server-optional-psram-enabled-devices-only)" section of this README.
 - Nuki Hub FQDN for HTTP redirect (PSRAM enabled devices only): FQDN hostname of the Nuki Hub device used for redirecting from HTTP to HTTPS.
 
+#### Status LED
+
+See the "[Status LED](#status-led-optional)" section of this README for the meaning of the colors. Changes require a restart.
+
+- Status LED GPIO: GPIO the status LED is connected to, set to -1 to disable (default). Use 35 for the built-in RGB LED of the M5Stack AtomS3 Lite. Don't assign this GPIO a role on the GPIO Configuration page as well.
+- Status LED type: "RGB LED (WS2812 / NeoPixel)" (default), "Plain LED (on = HIGH)" or "Plain LED (on = LOW)".
+- Status LED brightness: Brightness of an RGB LED, 1-255, default 40.
+- Blink when network is disconnected (red): Blink instead of solid when there is no network connection. Enabled by default.
+- Blink when MQTT is disconnected (orange): Blink instead of solid when there is no connection to the MQTT broker. Enabled by default.
+- Blink when everything is OK (green): Blink instead of solid when everything is connected. Disabled by default.
+- Turn LED off when everything is OK: Turn the LED off instead of showing green when everything is connected. Disabled by default.
+- Blink during Bluetooth communication (blue): Blink instead of solid while a command is sent to the Nuki device. Disabled by default.
+- Blink after a failed Bluetooth command (magenta, 10 s): Blink instead of solid for 10 seconds after a command to the Nuki device failed. Enabled by default.
+
 #### IP Address assignment
 
 - Enable DHCP: Enable to use DHCP for obtaining an IP address, disable to use the static IP settings below
@@ -547,6 +561,8 @@ Note that the following options can break Nuki Hub and cause bootloops that will
 - maintenance/freeHeap: Only available when debug mode is enabled. Set to the current size of free heap memory in bytes.
 - maintenance/restartReasonNukiHub: Set to the last reason Nuki Hub was restarted. See [RestartReason.h](/src/RestartReason.h) for possible values
 - maintenance/restartReasonNukiEsp: Set to the last reason the ESP was restarted. See [RestartReason.h](/src/RestartReason.h) for possible values
+- maintenance/statusLed/action: Only available when a status LED is configured. Use to override the status LED, see the "[Status LED](#status-led-optional)" section of this README.
+- maintenance/statusLed/state: Only available when a status LED is configured. Current state of the status LED as JSON, e.g. `{"state":"ON","effect":"auto","color_mode":"rgb","brightness":40,"color":{"r":255,"g":255,"b":255}}`.
 
 ## Import and Export Nuki Hub settings over MQTT (BETA)
 
@@ -943,6 +959,47 @@ To enable GPIO control, go the the "GPIO Configuration" page where each GPIO can
 - General input (pull-down): The pin is configured in pull-down configuration and its state is published to the "gpio/pin_x/state" topic
 - General input (pull-up): The pin is configured in pull-up configuration and its state is published to the "gpio/pin_x/state" topic
 - Genral output: The pin is set to high or low depending on the "gpio/pin_x/state" topic
+
+## Status LED (optional)
+
+Nuki Hub can show its status on a LED, either a WS2812 / NeoPixel RGB LED (such as the built-in LED on GPIO 35 of the M5Stack AtomS3 Lite) or a plain LED.<br>
+Configure the LED on the "Network Configuration" page, see "[Status LED](#status-led)" in the configuration section of this README.
+
+### LED states
+
+When multiple states apply, the state highest in the table is shown. For every state except access point mode you can choose between blinking (on/off every 0.5 seconds) and solid in the web configuration.
+
+| State | Color (RGB LED) | Default |
+|---|---|---|
+| A command to the Nuki device failed (shown for 10 seconds) | Magenta | Blinking |
+| Bluetooth communication with the Nuki device in progress | Blue | Solid |
+| Access point (setup) mode active | Cyan | Always blinking |
+| No network connection | Red | Blinking |
+| No connection to the MQTT broker (only when MQTT is configured) | Orange | Blinking |
+| Everything connected | Green | Solid (or off, when "Turn LED off when everything is OK" is enabled) |
+
+A plain LED doesn't show colors: it is on for every state above (blinking or solid as configured) and off when "Turn LED off when everything is OK" is enabled and everything is connected.
+
+### Controlling the LED over MQTT
+
+The LED can be overridden by publishing to `maintenance/statusLed/action`. An override is not saved and is reset to `auto` after a restart.
+
+- `auto`: Show the Nuki Hub status (default)
+- `on` / `solid`: LED on in the last set color
+- `blink`: LED blinking in the last set color
+- `off`: LED off
+- JSON (compatible with a Home Assistant JSON light), for example:
+  - `{"state":"ON","color":{"r":255,"g":0,"b":0}}`: solid red
+  - `{"state":"ON","color":{"r":0,"g":0,"b":255},"effect":"blink"}`: blinking blue
+  - `{"state":"ON","brightness":120}`: change the brightness (1-255)
+  - `{"state":"ON","effect":"auto"}`: back to showing the Nuki Hub status
+  - `{"state":"OFF"}`: LED off
+
+The current state is published to `maintenance/statusLed/state`.
+
+### Home Assistant
+
+When Home Assistant discovery is enabled, a light entity "Status LED" is added to the Nuki Hub device. It supports on/off, color and brightness (RGB LED only) and the effects "auto" (show the Nuki Hub status), "solid" and "blink".
 
 ## Connecting via Ethernet (Optional)
 
