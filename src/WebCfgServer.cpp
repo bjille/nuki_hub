@@ -3505,7 +3505,6 @@ bool WebCfgServer::processArgs(PsychicRequest *request, PsychicResponse* resp, S
 
         int ledFlags = 0;
         ledFlags |= isParameterTrue(request, "STLEDBLNET") ? STATUS_LED_BLINK_NO_NETWORK : 0;
-        ledFlags |= isParameterTrue(request, "STLEDBLMQTT") ? STATUS_LED_BLINK_NO_MQTT : 0;
         ledFlags |= isParameterTrue(request, "STLEDBLOK") ? STATUS_LED_BLINK_OK : 0;
         ledFlags |= isParameterTrue(request, "STLEDBLBLE") ? STATUS_LED_BLINK_BLE : 0;
         ledFlags |= isParameterTrue(request, "STLEDBLERR") ? STATUS_LED_BLINK_BLE_ERROR : 0;
@@ -5438,7 +5437,6 @@ esp_err_t WebCfgServer::buildNetworkConfigHtml(PsychicRequest *request, PsychicR
     printInputField(&response, "STLEDBRIGHT", "Status LED brightness (1-255, RGB only)", _preferences->getInt(preference_status_led_brightness, 40), 3, "");
     int ledFlags = _preferences->getInt(preference_status_led_flags, STATUS_LED_DEFAULT_FLAGS);
     printCheckBox(&response, "STLEDBLNET", "Blink when network is disconnected (red)", ledFlags & STATUS_LED_BLINK_NO_NETWORK, "");
-    printCheckBox(&response, "STLEDBLMQTT", "Blink when MQTT is disconnected (orange)", ledFlags & STATUS_LED_BLINK_NO_MQTT, "");
     printCheckBox(&response, "STLEDBLOK", "Blink when everything is OK (green)", ledFlags & STATUS_LED_BLINK_OK, "");
     printCheckBox(&response, "STLEDOFFOK", "Turn LED off when everything is OK", ledFlags & STATUS_LED_OFF_WHEN_OK, "");
     printCheckBox(&response, "STLEDBLBLE", "Blink during Bluetooth communication (blue)", ledFlags & STATUS_LED_BLINK_BLE, "");
