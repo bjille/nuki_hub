@@ -3473,6 +3473,15 @@ bool WebCfgServer::processArgs(PsychicRequest *request, PsychicResponse* resp, S
         bool v = isParameterTrue(request, "RSTDISC");
         _preferences->putBool(preference_restart_on_disconnect, v);
     }
+    if(request->hasParam("NUKINOWIFI"))
+    {
+        bool v = isParameterTrue(request, "NUKINOWIFI");
+        if(_preferences->getBool(preference_nuki_without_wifi, true) != v)
+        {
+            _preferences->putBool(preference_nuki_without_wifi, v);
+            configChanged = true;
+        }
+    }
     if(request->hasParam("STLEDPIN"))
     {
         int ledPin = request->getParam("STLEDPIN")->value().toInt();
@@ -5414,6 +5423,7 @@ esp_err_t WebCfgServer::buildNetworkConfigHtml(PsychicRequest *request, PsychicR
     printInputField(&response, "RSSI", "RSSI Publish interval (seconds; -1 to disable)", _preferences->getInt(preference_rssi_publish_interval), 6, "");
 #endif
     printCheckBox(&response, "RSTDISC", "Restart on disconnect", _preferences->getBool(preference_restart_on_disconnect), "");
+    printCheckBox(&response, "NUKINOWIFI", "Keep Nuki Bluetooth and GPIO control active when Wi-Fi is disconnected", _preferences->getBool(preference_nuki_without_wifi, true), "");
     printCheckBox(&response, "CHECKUPDATE", "Check for Firmware Updates every 24h", _preferences->getBool(preference_check_updates), "");
     printCheckBox(&response, "FINDBESTRSSI", "Find WiFi AP with strongest signal", _preferences->getBool(preference_find_best_rssi, false), "");
     printCheckBox(&response, "WIFIPSDIS", "Disable Wi-Fi power save (improves weak connections)", _preferences->getBool(preference_wifi_power_save_disabled, false), "");
