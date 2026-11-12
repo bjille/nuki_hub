@@ -254,7 +254,7 @@ In a browser navigate to the IP address assigned to the ESP32.
 See the "[Status LED](#status-led-optional)" section of this README for the meaning of the colors. Changes require a restart.
 
 - Status LED GPIO: GPIO the status LED is connected to, set to -1 to disable (default). Use 35 for the built-in RGB LED of the M5Stack AtomS3 Lite. Don't assign this GPIO a role on the GPIO Configuration page as well.
-- Status LED type: "RGB LED (WS2812 / NeoPixel)" (default), "Plain LED (on = HIGH)" or "Plain LED (on = LOW)".
+- Status LED type: "RGB LED (WS2812 / NeoPixel)" (default), "RGB LED (WS2812, red and green swapped)", "Plain LED (on = HIGH)" or "Plain LED (on = LOW)". If the LED shows red when everything is connected (instead of green), choose "RGB LED (WS2812, red and green swapped)".
 - Status LED brightness: Brightness of an RGB LED, 1-255, default 40.
 - Blink when network is disconnected (red): Blink instead of solid when there is no network connection. Enabled by default.
 - Blink when everything is OK (green): Blink instead of solid when everything is connected. Disabled by default.
