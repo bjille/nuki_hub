@@ -5431,6 +5431,7 @@ esp_err_t WebCfgServer::buildNetworkConfigHtml(PsychicRequest *request, PsychicR
     printInputField(&response, "STLEDPIN", "Status LED GPIO (-1 to disable, 35 for M5Stack AtomS3 Lite)", _preferences->getInt(preference_status_led_pin, -1), 3, "");
     std::vector<std::pair<String, String>> ledTypes;
     ledTypes.push_back(std::make_pair("2", "RGB LED (WS2812 / NeoPixel)"));
+    ledTypes.push_back(std::make_pair("3", "RGB LED (WS2812, red and green swapped)"));
     ledTypes.push_back(std::make_pair("0", "Plain LED (on = HIGH)"));
     ledTypes.push_back(std::make_pair("1", "Plain LED (on = LOW)"));
     printDropDown(&response, "STLEDTYPE", "Status LED type", String(_preferences->getInt(preference_status_led_type, 2)), ledTypes, "");
