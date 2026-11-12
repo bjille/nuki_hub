@@ -51,7 +51,7 @@ StatusLed::StatusLed(Preferences* preferences)
     _flags = (uint8_t)preferences->getInt(preference_status_led_flags, STATUS_LED_DEFAULT_FLAGS);
     _brightness = (uint8_t)constrain(preferences->getInt(preference_status_led_brightness, 40), 1, 255);
 
-    if(_type != StatusLedType::RgbWs2812)
+    if(!isRgb())
     {
         pinMode(_pin, OUTPUT);
     }
@@ -63,7 +63,7 @@ StatusLed::StatusLed(Preferences* preferences)
 
 bool StatusLed::isRgb() const
 {
-    return _type == StatusLedType::RgbWs2812;
+    return _type == StatusLedType::RgbWs2812 || _type == StatusLedType::RgbWs2812RgbOrder;
 }
 
 void StatusLed::setNetworkState(bool networkConnected, bool mqttConnected, bool apOpen)
@@ -191,6 +191,10 @@ void StatusLed::write(uint8_t r, uint8_t g, uint8_t b)
     {
     case StatusLedType::RgbWs2812:
         rgbLedWrite(_pin, r, g, b);
+        break;
+    case StatusLedType::RgbWs2812RgbOrder:
+        // rgbLedWrite sends GRB, swap red and green for LEDs that expect RGB
+        rgbLedWrite(_pin, g, r, b);
         break;
     case StatusLedType::PlainInverted:
         digitalWrite(_pin, (r | g | b) ? LOW : HIGH);
