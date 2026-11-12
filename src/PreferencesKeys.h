@@ -54,6 +54,7 @@
 #define preference_status_led_type (char*)"stLedType"
 #define preference_status_led_brightness (char*)"stLedBright"
 #define preference_status_led_flags (char*)"stLedFlags"
+#define preference_nuki_without_wifi (char*)"nukiNoWifi"
 
 // CHANGE DOES NOT REQUIRE REBOOT TO TAKE EFFECT
 #define preference_find_best_rssi (char*)"nwbestrssi"
@@ -585,7 +586,8 @@ private:
         preference_cred_duo_approval, preference_cred_bypass_boot_btn_enabled, preference_cred_bypass_gpio_high, preference_cred_bypass_gpio_low, preference_publish_config,
         preference_config_from_mqtt, preference_totp_secret, preference_cred_session_lifetime_totp, preference_cred_session_lifetime_totp_remember, preference_bypass_secret,
         preference_admin_secret, preference_ble_general_timeout, preference_ble_command_timeout, preference_force_hosted_update,
-        preference_status_led_pin, preference_status_led_type, preference_status_led_brightness, preference_status_led_flags
+        preference_status_led_pin, preference_status_led_type, preference_status_led_brightness, preference_status_led_flags,
+        preference_nuki_without_wifi
     };
     std::vector<char*> _redact =
     {
@@ -606,7 +608,7 @@ private:
         preference_debug_connect, preference_debug_communication, preference_debug_readable_data, preference_debug_hex_data, preference_debug_command,
         preference_lock_force_id, preference_lock_force_doorsensor, preference_lock_force_keypad, preference_opener_force_id, preference_opener_force_keypad, preference_mqtt_ssl_enabled,
         preference_hybrid_reboot_on_disconnect, preference_lock_gemini_enabled, preference_enable_debug_mode, preference_cred_duo_enabled, preference_cred_duo_approval,
-        preference_publish_config, preference_config_from_mqtt, preference_force_hosted_update
+        preference_publish_config, preference_config_from_mqtt, preference_force_hosted_update, preference_nuki_without_wifi
     };
     std::vector<char*> _bytePrefs =
     {
