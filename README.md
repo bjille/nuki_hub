@@ -243,6 +243,7 @@ In a browser navigate to the IP address assigned to the ESP32.
 - Home Assistant device configuration URL: When using Home Assistant discovery the link to the Nuki Hub Web Configuration will be published to Home Assistant. By default when this setting is left empty this will link to the current IP of the Nuki Hub. When using a reverse proxy to access the Web Configuration you can set a custom URL here.
 - RSSI Publish interval: Set to a positive integer to set the amount of seconds between updates to the maintenance/wifiRssi MQTT topic with the current Wi-Fi RSSI, set to -1 to disable, default 60.
 - Restart on disconnect: Enable to restart the Nuki Hub when disconnected from the network.
+- Keep Nuki Bluetooth and GPIO control active when Wi-Fi is disconnected: Enabled by default. Bluetooth communication with the Nuki Lock/Opener and GPIO control (for example the "Input: Lock" / "Input: Unlock" roles and the GPIO outputs) keep working when the Wi-Fi network is offline, also when Wi-Fi is not available at boot. Disable to pause the Nuki Bluetooth communication while Wi-Fi is disconnected (original Nuki Hub behaviour). Changes require a restart.
 - Check for Firmware Updates every 24h: Enable to allow the Nuki Hub to check the latest release of the Nuki Hub firmware on boot and every 24 hours. Requires the Nuki Hub to be able to connect to github.com. The latest version will be published to MQTT and will be visible on the main page of the Web Configurator.
 - Set HTTP SSL Certificate (PSRAM enabled devices only): Optionally set to the SSL certificate of the HTTPS server, see the "[HTTPS Server](#https-server-optional-psram-enabled-devices-only)" section of this README.
 - Set HTTP SSL Key (PSRAM enabled devices only): Optionally set to the SSL key of the HTTPS server, see the "[HTTPS Server](#https-server-optional-psram-enabled-devices-only)" section of this README.
@@ -931,6 +932,7 @@ Examples:
 ## GPIO lock control (optional)
 
 The lock can be controlled via GPIO. To trigger actions, a connection to ground has to be present for at least 300ms (or to +3.3V for "General input (pull-down)"). <br>
+GPIO control keeps working when the Wi-Fi network is offline, as long as "Keep Nuki Bluetooth and GPIO control active when Wi-Fi is disconnected" is enabled on the Network Configuration page (default). Don't enable "Restart on disconnect" if GPIO control has to keep working without Wi-Fi, because Nuki Hub will then keep restarting while the network is offline.<br>
 <br>
 To enable GPIO control, go the the "GPIO Configuration" page where each GPIO can e configured for a specific role:
 - Disabled: The GPIO is disabled
