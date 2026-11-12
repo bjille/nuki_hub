@@ -21,7 +21,8 @@ enum class StatusLedType
 {
     Plain = 0,
     PlainInverted = 1,
-    RgbWs2812 = 2
+    RgbWs2812 = 2,
+    RgbWs2812RgbOrder = 3   // WS2812-type LED with red and green swapped (RGB instead of GRB order)
 };
 
 // Bits for preference_status_led_flags (0x02 was "blink when MQTT disconnected", no longer used)
