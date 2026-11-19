@@ -4,6 +4,7 @@
 #include "Logger.h"
 #include "PreferencesKeys.h"
 #include "MqttTopics.h"
+#include "StatusLed.h"
 #include "esp_rom_crc.h"
 #include "esp_heap_caps.h"
 #if defined(CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE) || defined(CONFIG_ESP_WIFI_REMOTE_ENABLED)
@@ -627,6 +628,49 @@ void HomeAssistantDiscovery::publishHASSNukiHubConfig()
     path.concat("/reset/config");
 
     publishConfig(path, json);
+
+    // Status LED (Home Assistant JSON light)
+    String ledPath = _discoveryTopicOrDefault;
+    ledPath.concat("/light/");
+    ledPath.concat(_nukiHubUidString);
+    ledPath.concat("/status_led/config");
+
+    if(StatusLed::enabled())
+    {
+        json.remove("opt");
+        json.remove("pl_on");
+        json.remove("pl_off");
+        json.remove("stat_on");
+        json.remove("stat_off");
+        json["name"] = "Status LED";
+        json["unique_id"] = String(_nukiHubUidString) + "_status_led";
+        json["schema"] = "json";
+        json["stat_t"] = String("~") + mqtt_topic_status_led_state;
+        json["cmd_t"] = String("~") + mqtt_topic_status_led_action;
+        json["ent_cat"] = "config";
+        json["ic"] = "mdi:led-on";
+        json["effect"] = true;
+        JsonArray effects = json["effect_list"].to<JsonArray>();
+        effects.add("auto");
+        effects.add("solid");
+        effects.add("blink");
+        JsonArray colorModes = json["supported_color_modes"].to<JsonArray>();
+        if(StatusLed::instance()->isRgb())
+        {
+            json["brightness"] = true;
+            colorModes.add("rgb");
+        }
+        else
+        {
+            colorModes.add("onoff");
+        }
+
+        publishConfig(ledPath, json);
+    }
+    else
+    {
+        removeConfig(ledPath);
+    }
 
 #ifndef CONFIG_IDF_TARGET_ESP32H2
     publishHassTopic("sensor",
@@ -2052,6 +2096,7 @@ void HomeAssistantDiscovery::removeHASSConfig(char* uidString)
     removeHassTopic((char*)"sensor", (char*)"trigger", uidString);
     removeHassTopic((char*)"binary_sensor", (char*)"mqtt_connected", uidString);
     removeHassTopic((char*)"switch", (char*)"reset", uidString);
+    removeHassTopic((char*)"light", (char*)"status_led", uidString);
     removeHassTopic((char*)"sensor", (char*)"firmware_version", uidString);
     removeHassTopic((char*)"sensor", (char*)"hardware_version", uidString);
     removeHassTopic((char*)"sensor", (char*)"nuki_hub_version", uidString);
