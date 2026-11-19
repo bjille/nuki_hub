@@ -58,6 +58,7 @@ bool nuki_hub_https_server_enabled = false;
 #include "RuntimeLog.h"
 #include "NimBLEDevice.h"
 #include "ImportExport.h"
+#include "StatusLed.h"
 
 NukiNetworkLock* networkLock = nullptr;
 NukiNetworkOpener* networkOpener = nullptr;
@@ -74,6 +75,8 @@ bool bleDone = false;
 bool lockEnabled = false;
 bool openerEnabled = false;
 bool wifiConnected = false;
+// Keep the Nuki (BLE) task, including GPIO actions, running while Wi-Fi is disconnected
+bool nukiWithoutWifi = true;
 bool rebootLock = false;
 bool whiteListed = false;
 uint8_t lockRestartControllerCount = 0;
@@ -1296,7 +1299,7 @@ void processOpener()
 
 void processNukiTask()
 {
-    if(!disableNetwork && !wifiConnected || !bleDone) return;
+    if((!disableNetwork && !wifiConnected && !nukiWithoutWifi) || !bleDone) return;
 
     if(bleScannerStarted)
     {
@@ -1727,6 +1730,7 @@ void setup()
     CharBuffer::initialize(buffer_size);
 
     gpio = new Gpio(preferences);
+    StatusLed::initialize(preferences);
     String gpioDesc;
     gpio->getConfigurationText(gpioDesc, gpio->pinConfiguration(), "\n\r");
     Log->print(gpioDesc.c_str());
@@ -1737,6 +1741,7 @@ void setup()
     network = new NukiNetwork(preferences, gpio, CharBuffer::get(), buffer_size, importExport);
     network->initialize();
 
+    nukiWithoutWifi = preferences->getBool(preference_nuki_without_wifi, true);
     lockEnabled = preferences->getBool(preference_lock_enabled);
     openerEnabled = preferences->getBool(preference_opener_enabled);
 
