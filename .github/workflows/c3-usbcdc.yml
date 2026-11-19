@@ -1,0 +1,170 @@
+name: Nuki Hub USB-logging web installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # S3/C3: route Serial (the Nuki Hub log) to the native USB port (HW CDC/JTAG)
+          - board: esp32-s3
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          - board: esp32-s3-nopsram
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          - board: esp32-s3-oct
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          - board: esp32-c3
+            flags: -DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1
+          # Classic ESP32 (e.g. ESP32-PICO): no native USB, logs already go via the USB-UART chip
+          - board: esp32-nopsram
+            flags: ""
+          - board: esp32
+            flags: ""
+    env:
+      BOARD: ${{ matrix.board }}
+      PLATFORMIO_BUILD_FLAGS: ${{ matrix.flags }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: false
+
+      - name: Install PlatformIO Core
+        run: |
+          uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+          uv pip install --system -U "littlefs-python>=0.16.0" "fatfs-ng>=0.1.14" "pyyaml>=6.0.2" \
+            "rich-click>=1.8.6" "zopfli>=0.2.2" "intelhex>=2.3.0" "rich>=14.0.0" "urllib3<2" \
+            "cryptography>=45.0.3" "certifi>=2025.8.3" "ecdsa>=0.19.1" "bitstring>=4.3.1" \
+            "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
+
+      - name: Add version info
+        env:
+          Version: usbcdc-${{ github.run_number }}
+        run: sed -i "s/unknownbuildnr/$Version/g" src/Config.h
+
+      - name: Build
+        run: |
+          make updater_${BOARD}
+          make ${BOARD}
+
+      - name: Collect binaries
+        run: |
+          V=${BOARD//-/}
+          mkdir -p out/$V
+          cp release/$V/nuki_hub_bootloader_$V.bin release/$V/nuki_hub_partitions_$V.bin \
+             release/$V/boot_app0.bin release/$V/nuki_hub_$V.bin release/$V/nuki_hub_updater_$V.bin out/$V/
+          ls -la out/$V
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.board }}
+          path: out
+
+  pages:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: site
+
+      - name: Create web installer
+        run: |
+          cd site
+          options=""
+          for V in esp32s3 esp32s3oct esp32s3nopsram esp32c3 esp32nopsram esp32; do
+            [ -d "$V" ] || continue
+            boot=0
+            case $V in
+              esp32nopsram) chip="ESP32"; boot=4096; label="ESP32 / ESP32-PICO zonder PSRAM (bv. PICO-D4)" ;;
+              esp32) chip="ESP32"; boot=4096; label="ESP32 / ESP32-PICO met PSRAM (bv. PICO-V3-02)" ;;
+              esp32c3) chip="ESP32-C3"; label="ESP32-C3" ;;
+              esp32s3) chip="ESP32-S3"; label="ESP32-S3 quad PSRAM (bv. N8R2, N16R2) of geen PSRAM" ;;
+              esp32s3nopsram) chip="ESP32-S3"; label="ESP32-S3 zonder PSRAM (als de vorige niet werkt)" ;;
+              esp32s3oct) chip="ESP32-S3"; label="ESP32-S3 octal PSRAM (bv. N8R8, N16R8)" ;;
+            esac
+            cat > manifest_$V.json <<EOF
+          {
+            "name": "Nuki Hub $label (USB-CDC logging)",
+            "version": "usbcdc-${{ github.run_number }}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              {
+                "chipFamily": "$chip",
+                "parts": [
+                  { "path": "$V/nuki_hub_bootloader_$V.bin", "offset": $boot },
+                  { "path": "$V/nuki_hub_partitions_$V.bin", "offset": 32768 },
+                  { "path": "$V/boot_app0.bin", "offset": 57344 },
+                  { "path": "$V/nuki_hub_$V.bin", "offset": 65536 },
+                  { "path": "$V/nuki_hub_updater_$V.bin", "offset": 2555904 }
+                ]
+              }
+            ]
+          }
+          EOF
+            options="$options<option value=\"manifest_$V.json\">$label</option>"
+          done
+          cat > index.html <<EOF
+          <!doctype html>
+          <html lang="nl">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Nuki Hub USB-CDC installer</title>
+            <script type="module" src="https://unpkg.com/esp-web-tools@10.1.1/dist/web/install-button.js?module"></script>
+            <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;line-height:1.5} select{font-size:1rem;padding:6px;margin:8px 0 16px;max-width:100%}</style>
+          </head>
+          <body>
+            <h1>Nuki Hub met USB-logging</h1>
+            <p>Nuki Hub firmware; bij de S3 en C3 gebouwd met <code>ARDUINO_USB_CDC_ON_BOOT=1</code>, zodat de seri&euml;le log (115200 baud) over de native USB-poort komt. Bij de klassieke ESP32 / PICO gaat de log via de USB-seri&euml;le chip.</p>
+            <label for="board">Kies je bord:</label><br>
+            <select id="board">$options</select><br>
+            <esp-web-install-button id="btn"></esp-web-install-button>
+            <p>Werkt in Chrome of Edge. Na het flashen kies je "Logs &amp; Console" om de log te zien, met de regel <code>Obtained IP address</code>.</p>
+            <script>
+              const s = document.getElementById('board'), b = document.getElementById('btn');
+              b.manifest = s.value; s.onchange = () => b.manifest = s.value;
+            </script>
+          </body>
+          </html>
+          EOF
+          ls -la
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
