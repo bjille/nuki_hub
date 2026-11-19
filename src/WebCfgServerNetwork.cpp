@@ -2,6 +2,9 @@
 #include "WebCfgServerConstants.h"
 #include "PreferencesKeys.h"
 #include "util/LowMemory.h"
+#ifndef NUKI_HUB_UPDATER
+#include "StatusLed.h"
+#endif
 #include "Logger.h"
 #include "RestartReason.h"
 #include "util/CertUtil.h"
@@ -22,6 +25,9 @@ static const Setting networkSettings[] =
     {"WIFIPSDIS", "Disable Wi-Fi power save (improves weak connections)", preference_wifi_power_save_disabled, SettingType::Bool, 0, 0, 0, 0, "", SettingEffect::None},
     {"WIFIBSSID", "Preferred access point MAC address (BSSID, e.g. aa:bb:cc:dd:ee:ff, falls back to any access point after two failed attempts)", preference_wifi_preferred_bssid, SettingType::String, 0, 0, 0, 17, "", SettingEffect::ConfigChanged},
     {"RSTDISC", "Restart on disconnect", preference_restart_on_disconnect, SettingType::Bool, 0, 0, 0, 0, "", SettingEffect::None},
+    {"NUKINOWIFI", "Keep Nuki Bluetooth and GPIO control active when Wi-Fi is disconnected", preference_nuki_without_wifi, SettingType::Bool, 1, 0, 0, 0, "", SettingEffect::ConfigChanged},
+    {"STLEDPIN", "Status LED GPIO (-1 to disable, 35 for M5Stack AtomS3 Lite)", preference_status_led_pin, SettingType::Int, -1, -1, 54, 3, "", SettingEffect::ConfigChanged},
+    {"STLEDBRIGHT", "Status LED brightness (1-255, RGB only)", preference_status_led_brightness, SettingType::Int, 40, 1, 255, 3, "", SettingEffect::ConfigChanged},
     {"CHECKUPDATE", "Check for Firmware Updates every 24h", preference_check_updates, SettingType::Bool, 0, 0, 0, 0, "", SettingEffect::RestartReconnect},
     {"DHCPENA", "Enable DHCP", preference_ip_dhcp_enabled, SettingType::Bool, 0, 0, 0, 0, "", SettingEffect::ConfigChanged},
     {"IPADDR", "Static IP address", preference_ip_address, SettingType::String, 0, 0, 0, 15, "", SettingEffect::ConfigChanged},
@@ -55,6 +61,7 @@ esp_err_t WebCfgServer::buildNetworkConfigHtml(PsychicRequest *request, PsychicR
     printSetting(&response, networkSettings, networkSettingsCount, "RSSI");
 #endif
     printSetting(&response, networkSettings, networkSettingsCount, "RSTDISC");
+    printSetting(&response, networkSettings, networkSettingsCount, "NUKINOWIFI");
     response.print("</table>");
     if(nuki_hub_https_server_enabled)
     {
@@ -71,6 +78,24 @@ esp_err_t WebCfgServer::buildNetworkConfigHtml(PsychicRequest *request, PsychicR
         printSetting(&response, networkSettings, networkSettingsCount, "HTTPSFQDN");
         response.print("</table>");
     }
+    response.print("<h3>Status LED</h3>");
+    response.print("<table>");
+    printSetting(&response, networkSettings, networkSettingsCount, "STLEDPIN");
+    std::vector<std::pair<String, String>> ledTypes;
+    ledTypes.push_back(std::make_pair("2", "RGB LED (WS2812 / NeoPixel)"));
+    ledTypes.push_back(std::make_pair("3", "RGB LED (WS2812, red and green swapped)"));
+    ledTypes.push_back(std::make_pair("0", "Plain LED (on = HIGH)"));
+    ledTypes.push_back(std::make_pair("1", "Plain LED (on = LOW)"));
+    printDropDown(&response, "STLEDTYPE", "Status LED type <span class=\"tag\">reboot</span>", String(_preferences->getInt(preference_status_led_type, 2)), ledTypes, "");
+    printSetting(&response, networkSettings, networkSettingsCount, "STLEDBRIGHT");
+    int ledFlags = _preferences->getInt(preference_status_led_flags, STATUS_LED_DEFAULT_FLAGS);
+    printCheckBox(&response, "STLEDBLNET", "Blink when network is disconnected (red) <span class=\"tag\">reboot</span>", ledFlags & STATUS_LED_BLINK_NO_NETWORK, "");
+    printCheckBox(&response, "STLEDBLOK", "Blink when everything is OK (green) <span class=\"tag\">reboot</span>", ledFlags & STATUS_LED_BLINK_OK, "");
+    printCheckBox(&response, "STLEDOFFOK", "Turn LED off when everything is OK <span class=\"tag\">reboot</span>", ledFlags & STATUS_LED_OFF_WHEN_OK, "");
+    printCheckBox(&response, "STLEDBLBLE", "Blink during Bluetooth communication (blue) <span class=\"tag\">reboot</span>", ledFlags & STATUS_LED_BLINK_BLE, "");
+    printCheckBox(&response, "STLEDBLERR", "Blink after a failed Bluetooth command (magenta, 10 s) <span class=\"tag\">reboot</span>", ledFlags & STATUS_LED_BLINK_BLE_ERROR, "");
+    response.print("<tr><td colspan=\"2\">Access point (setup) mode is always shown as blinking cyan. Override the LED via MQTT topic maintenance/statusLed/action or the Home Assistant light.</td></tr>");
+    response.print("</table>");
     response.print("<h3>IP Address assignment</h3>");
     response.print("<table>");
     printSetting(&response, networkSettings, networkSettingsCount, "DHCPENA");
@@ -603,6 +628,31 @@ void WebCfgServer::processNetworkArgs(PsychicRequest *request, ProcessArgsState&
     }
 
     applySettings(request, networkSettings, networkSettingsCount, state);
+
+    if(request->hasParam("STLEDTYPE"))
+    {
+        int ledType = request->getParam("STLEDTYPE")->value().toInt();
+        if(ledType >= 0 && ledType <= 3 && _preferences->getInt(preference_status_led_type, 2) != ledType)
+        {
+            _preferences->putInt(preference_status_led_type, ledType);
+            state.configChanged = true;
+        }
+    }
+
+    if(request->hasParam("STLEDBLNET"))
+    {
+        int ledFlags = 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLNET") ? STATUS_LED_BLINK_NO_NETWORK : 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLOK") ? STATUS_LED_BLINK_OK : 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLBLE") ? STATUS_LED_BLINK_BLE : 0;
+        ledFlags |= isParameterTrue(request, "STLEDBLERR") ? STATUS_LED_BLINK_BLE_ERROR : 0;
+        ledFlags |= isParameterTrue(request, "STLEDOFFOK") ? STATUS_LED_OFF_WHEN_OK : 0;
+        if(_preferences->getInt(preference_status_led_flags, STATUS_LED_DEFAULT_FLAGS) != ledFlags)
+        {
+            _preferences->putInt(preference_status_led_flags, ledFlags);
+            state.configChanged = true;
+        }
+    }
 
     if(networkReconfigure)
     {
